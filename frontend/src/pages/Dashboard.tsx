@@ -24,7 +24,7 @@ export default function Dashboard() {
       setLoading(true);
       setError(false);
       try {
-        const response = await axios.post('http://localhost:8000/predict', {
+        const response = await axios.post('/api/predict', {
           city: selectedCity,
           state: "Unknown", // the backend now handles city-based lookup directly via area
           date: new Date().toISOString().split('T')[0],

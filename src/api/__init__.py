@@ -7,7 +7,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import date
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
+import os
 import joblib
 import pandas as pd
 import numpy as np
@@ -16,35 +17,42 @@ from src.utils import AQI_HEALTH_ADVICE
 app = FastAPI(title="Aetheris API", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-BEST_MODEL = None
-FEATURE_COLS = None
-LATEST_DATA = None
+BEST_MODEL: Any = None
+FEATURE_COLS: Optional[List[str]] = None
+LATEST_DATA: Optional[Dict[str, Any]] = None
+
+GLOBAL_STATE = {"loaded": False}
+
+def ensure_loaded():
+    global BEST_MODEL, FEATURE_COLS, LATEST_DATA
+    if GLOBAL_STATE["loaded"]:
+        return
+    
+    # Absolute paths for Vercel
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    
+    try:
+        model_path = os.path.join(base_dir, "models", "best_model.pkl")
+        features_path = os.path.join(base_dir, "data", "processed", "feature_cols.pkl")
+        data_path = os.path.join(base_dir, "data", "processed", "aqi_processed.csv")
+
+        if os.path.exists(model_path):
+            BEST_MODEL = joblib.load(model_path)
+        if os.path.exists(features_path):
+            FEATURE_COLS = joblib.load(features_path)
+        if os.path.exists(data_path):
+            df = pd.read_csv(data_path)
+            df["date"] = pd.to_datetime(df["date"])
+            LATEST_DATA = dict(tuple(df.sort_values("date").groupby("area").last().reset_index().groupby("area")))
+        
+        GLOBAL_STATE["loaded"] = True
+        print(f"Serverless state initialized at {base_dir}")
+    except Exception as e:
+        print(f"CRITICAL VERCEL LOAD ERROR: {e}")
 
 @app.on_event("startup")
 def startup():
-    global BEST_MODEL, FEATURE_COLS, LATEST_DATA
-    try:
-        BEST_MODEL = joblib.load("models/best_model.pkl")
-        print("Model loaded.")
-    except FileNotFoundError:
-        print("WARNING: No model at models/best_model.pkl — train first.")
-        
-    try:
-        FEATURE_COLS = joblib.load("data/processed/feature_cols.pkl")
-        print(f"Loaded {len(FEATURE_COLS)} feature columns.")
-    except Exception as e:
-        print(f"WARNING: Feature cols could not be loaded -> {e}")
-
-    try:
-        # Load the latest state for each city to construct lag/rolling features correctly
-        df = pd.read_csv("data/processed/aqi_processed.csv")
-        df["date"] = pd.to_datetime(df["date"])
-        # Keep the most recent record per city
-        LATEST_DATA = dict(tuple(df.sort_values("date").groupby("area").last().reset_index().groupby("area")))
-        print(f"Loaded contextual history for {len(LATEST_DATA)} cities.")
-    except Exception as e:
-        print(f"WARNING: Historical lookup data not loaded -> {e}")
-
+    ensure_loaded()
 
 class PredictRequest(BaseModel):
     city: str
@@ -69,6 +77,7 @@ def root():
 
 @app.post("/predict", response_model=PredictResponse)
 def predict(req: PredictRequest):
+    ensure_loaded()
     if BEST_MODEL is None or FEATURE_COLS is None or LATEST_DATA is None:
         raise HTTPException(503, "API is disconnected from ML storage — models not loaded.")
 
