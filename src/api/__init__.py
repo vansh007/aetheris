@@ -96,12 +96,14 @@ def predict(req: PredictRequest):
     
     # Extract only the exact columns the pipeline expects, in the exact order
     try:
-        X = latest_row[FEATURE_COLS]
+        # Wrap in a DataFrame to preserve feature names and resolve scikit-learn warnings/errors
+        X = pd.DataFrame([latest_row[FEATURE_COLS]])
     except KeyError as e:
         raise HTTPException(500, f"Missing historical features to construct prediction: {e}")
 
     # Predict
     try:
+        # X is now a DataFrame, predict returns an array
         pred_val = BEST_MODEL.predict(X)[0]
     except Exception as e:
         raise HTTPException(500, f"Model inference failed: {e}")
