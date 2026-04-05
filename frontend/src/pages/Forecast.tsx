@@ -2,7 +2,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { forecastData, prophetVsArima, chartTimeSeriesData, decompositionData } from '../data/forecastData';
 import { cityProfiles, allCities } from '../data/citiesData';
 import { getAqiBadgeStyles, getAqiCategory } from '../utils/aqiUtils';
-import { CalendarClock, Activity, Search, BarChart2, Layers, MapPin } from 'lucide-react';
+import { CalendarClock, Activity, Layers, MapPin } from 'lucide-react';
 import clsx from 'clsx';
 import { useState, useMemo } from 'react';
 

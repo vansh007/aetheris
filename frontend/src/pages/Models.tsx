@@ -164,7 +164,7 @@ export default function Models() {
               <YAxis dataKey="name" type="category" stroke="#475569" tick={{ fill: '#cbd5e1', fontSize: 12 }} width={140} />
               <RechartsTooltip
                 contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
-                formatter={(v: number) => [`${(v * 100).toFixed(1)}%`, 'Importance']}
+                formatter={(v: any) => [`${(Number(v) * 100).toFixed(1)}%`, 'Importance']}
               />
               <Bar dataKey="value" radius={[0, 6, 6, 0]}>
                 {chartDataFI.map((_, index) => (
