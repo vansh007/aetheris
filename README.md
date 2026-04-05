@@ -1,62 +1,118 @@
 # 🌬️ Aetheris — Intelligent Air Quality Prediction & Advisory System
 
-End-to-end ML system that predicts AQI for Indian cities, analyzes pollution trends, detects anomalies, and provides health recommendations.
+[![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
+[![Scikit-Learn](https://img.shields.io/badge/scikit--learn-%23F7931E.svg?style=for-the-badge&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
+[![TailwindCSS](https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 
-## Setup
+**Aetheris** is a production-grade, end-to-end Machine Learning platform engineered to predict, analyze, and visualize Air Quality Index (AQI) dynamics across 291 Indian cities. By leveraging advanced tree-based ensemble learning and rigorous time-series preprocessing, Aetheris provides high-fidelity pollution forecasts and actionable health advisories.
 
+---
+
+## 🚀 Key Features
+
+*   **Zero-Leakage ML Pipeline**: Strictly enforced `TimeSeriesSplit` cross-validation to prevent temporal data leakage and ensure real-world generalizability.
+*   **54-Feature Intelligence engine**: Dynamic generation of 7-day lags, 30-day rolling averages, cyclical time encodings, and geographic target encodings.
+*   **Synthetic Rebalancing (SMOTE)**: Addressed the massive 160:1 class imbalance between "Satisfactory" and "Severe" days to ensure the model never misses life-threatening pollution spikes.
+*   **Live Inference Backend**: A high-performance FastAPI server that reconstructs complex feature vectors on-the-fly for real-time LightGBM predictions.
+*   **Modern Analytics Dashboard**: A sleek, dark-themed React interface with interactive Recharts, city-to-city comparisons, and automated health recommendations.
+
+---
+
+## 📊 Performance Leaderboard
+
+After evaluating 9+ algorithms, **LightGBM** (Gradient Boosting) emerged as the champion across both tracks:
+
+### 📈 Regression (Exact AQI Value)
+| Metric | Result | Interpretation |
+| :--- | :--- | :--- |
+| **R² Score** | **0.904** | Explains 90% of atmospheric variance |
+| **RMSE** | **20.29** | Average error of only ~4% on the full scale |
+| **MAE** | **13.55** | Extremely tight precision for categorical mapping |
+
+### 🎯 Classification (Severity Categories)
+| Metric | Result | Status |
+| :--- | :--- | :--- |
+| **Weighted F1** | **0.875** | Robust balance between Precision & Recall |
+| **Recall (Severe)** | **High** | Successfully identifies hazardous days via SMOTE |
+
+---
+
+## 🏗️ System Architecture
+
+```mermaid
+graph TD
+    A[Kaggle Dataset: 235k Records] --> B[Pipeline: run_02_preprocessing.py]
+    B --> C{Feature Engine}
+    C --> C1[7d/30d Lags & Rolling]
+    C --> C2[Cyclical Time Encodings]
+    C --> C3[Location Target Encoding]
+    
+    B --> D[TimeSeriesSplit & SMOTE]
+    D --> E[Model: LightGBM / XGBoost]
+    
+    E --> F[Serialized best_model.pkl]
+    F --> G[FastAPI Production Server]
+    
+    H[React Frontend] <--> G
+    H --> I[Dynamic Dashboard]
+    H --> J[City Comparison Tool]
+    H --> K[Health Advisory Engine]
+```
+
+---
+
+## 🛠️ Installation & Setup
+
+### Backend (Python 3.9+)
 ```bash
-# 1. Create virtual environment
+# 1. Setup environment
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate     # Windows
+source venv/bin/activate
 
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Place dataset
-# Download aqi.csv from Kaggle → put in data/raw/aqi.csv
-
-# 4. Run scripts in order
+# 3. Train models
 python run_01_eda.py
 python run_02_preprocessing.py
-python run_03_modeling.py
-python run_04_timeseries.py
-python run_05_clustering.py
-python run_06_evaluation.py
+python run_03_modeling.py   # Generated best_model.pkl
+
+# 4. Start API
+uvicorn src.api:app --reload
 ```
 
-## Project Structure
-
+### Frontend (Node 18+)
+```bash
+cd frontend
+npm install
+npm run dev
 ```
+
+---
+
+## 📁 Project Structure
+
+```text
 aetheris/
-├── data/raw/aqi.csv              ← PUT YOUR DATASET HERE
-├── data/processed/               ← Auto-generated
 ├── src/
-│   ├── preprocessing/            ← Cleaning & feature engineering
-│   ├── models/                   ← Model definitions & training
-│   ├── evaluation/               ← Metrics & plots
-│   ├── visualization/            ← EDA & dashboard charts
-│   ├── api/                      ← FastAPI backend
-│   └── utils/                    ← Constants, config, helpers
-├── reports/figures/              ← Saved plots
-├── models/                       ← Saved .pkl models
-├── config/config.yaml            ← All settings
-├── run_01_eda.py                 ← Step 1: Explore data
-├── run_02_preprocessing.py       ← Step 2: Clean & engineer features
-├── run_03_modeling.py            ← Step 3: Train & compare models
-├── run_04_timeseries.py          ← Step 4: ARIMA/Prophet forecasting
-├── run_05_clustering.py          ← Step 5: Cluster cities & detect anomalies
-├── run_06_evaluation.py          ← Step 6: Final report
-└── requirements.txt
+│   ├── api/             # FastAPI Inference Engine
+│   ├── models/          # Ensemble Definitions & Logic
+│   ├── preprocessing/   # Zero-leakage Engineering
+│   └── evaluation/      # Time-Series Validation Suites
+├── frontend/            # React + Tailwind + Vite
+├── data/                # Raw & Processed data stores
+├── reports/figures/     # High-res performance plots
+├── models/              # Serialized Production Binaries
+└── run_*.py             # Orchestration scripts 01-06
 ```
 
-## Dataset
-- **Source**: India AQI Dataset 2023-2025 (Kaggle)
-- **Records**: 235,785 | **States**: 32 | **Cities**: 291
+---
 
-## Models Compared
-**Regression** (predict AQI value): Linear, Ridge, Lasso, KNN, Random Forest, Gradient Boosting, XGBoost, LightGBM, CatBoost
-**Classification** (predict AQI category): Random Forest, XGBoost, LightGBM, CatBoost — all with SMOTE
-**Time Series**: ARIMA, Prophet
-**Clustering**: K-Means, DBSCAN, Hierarchical
-**Anomaly Detection**: Isolation Forest
+## 📜 Research Reports
+For a deep dive into the methodology, exploratory analysis, and mathematical rationale, please refer to the following documents in the root:
+*   [Ultimate_Thesis_Aetheris_Report.md](./Ultimate_Thesis_Aetheris_Report.md) (Complete detailed breakdown)
+*   [report.md](./report.md) (Quick summary)
+
+---
+**Author**: Project Aetheris (2025)
