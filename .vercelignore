@@ -1,0 +1,15 @@
+venv/
+.venv/
+node_modules/
+frontend/node_modules/
+data/raw/
+reports/
+catboost_info/
+**/__pycache__
+*.pyc
+.git
+.github
+*.md
+*.key
+*.pdf
+# Keep models/ and data/processed/ for inference
