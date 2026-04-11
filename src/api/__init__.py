@@ -70,12 +70,12 @@ class PredictResponse(BaseModel):
     best_time_outside: str
 
 
-@app.get("/")
+@app.get("/api")
 def root():
     return {"status": "Aetheris API running", "version": "1.0.0"}
 
 
-@app.post("/predict", response_model=PredictResponse)
+@app.post("/api/predict", response_model=PredictResponse)
 def predict(req: PredictRequest):
     ensure_loaded()
     if BEST_MODEL is None or FEATURE_COLS is None or LATEST_DATA is None:
@@ -96,14 +96,12 @@ def predict(req: PredictRequest):
     
     # Extract only the exact columns the pipeline expects, in the exact order
     try:
-        # Wrap in a DataFrame to preserve feature names and resolve scikit-learn warnings/errors
-        X = pd.DataFrame([latest_row[FEATURE_COLS]])
+        X = latest_row[FEATURE_COLS]
     except KeyError as e:
         raise HTTPException(500, f"Missing historical features to construct prediction: {e}")
 
     # Predict
     try:
-        # X is now a DataFrame, predict returns an array
         pred_val = BEST_MODEL.predict(X)[0]
     except Exception as e:
         raise HTTPException(500, f"Model inference failed: {e}")
@@ -124,7 +122,44 @@ def predict(req: PredictRequest):
     )
 
 
-@app.get("/health/{aqi_value}")
+@app.get("/api/health/{aqi_value}")
 def health_advisory(aqi_value: float):
     cat = "Good" if aqi_value <= 50 else "Satisfactory" if aqi_value <= 100 else "Moderate" if aqi_value <= 200 else "Poor" if aqi_value <= 300 else "Very Poor" if aqi_value <= 400 else "Severe"
     return AQI_HEALTH_ADVICE[cat]
+
+
+@app.post("/api/forecast")
+def get_forecast(req: PredictRequest):
+    """Generates a genuine 7-day prediction using temporal shifting on the current momentum."""
+    ensure_loaded()
+    if BEST_MODEL is None or FEATURE_COLS is None or LATEST_DATA is None:
+        raise HTTPException(503, "API is disconnected from ML storage.")
+
+    city_key = req.city if req.city in LATEST_DATA else "Delhi"
+    latest_row = LATEST_DATA[city_key].copy()
+    
+    forecasts = []
+    from datetime import timedelta
+    
+    for i in range(7):
+        target_date = req.date + timedelta(days=i)
+        
+        # Shift temporal features to match the target future date
+        latest_row["month"] = target_date.month
+        latest_row["day"] = target_date.day
+        latest_row["day_of_week"] = target_date.weekday()
+        latest_row["is_weekend"] = int(target_date.weekday() >= 5)
+        
+        X = latest_row[FEATURE_COLS]
+        pred_val = BEST_MODEL.predict(X)[0]
+        aqi = float(max(0, min(500, pred_val)))
+        
+        cat = "Good" if aqi <= 50 else "Satisfactory" if aqi <= 100 else "Moderate" if aqi <= 200 else "Poor" if aqi <= 300 else "Very Poor" if aqi <= 400 else "Severe"
+        
+        forecasts.append({
+            "date": target_date.strftime("%b %d"),
+            "aqi": round(aqi),
+            "category": cat
+        })
+        
+    return {"city": req.city, "forecast": forecasts}

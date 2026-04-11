@@ -1,10 +1,11 @@
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Area, ComposedChart, AreaChart } from 'recharts';
-import { forecastData, prophetVsArima, chartTimeSeriesData, decompositionData } from '../data/forecastData';
+import { prophetVsArima, decompositionData } from '../data/forecastData';
 import { cityProfiles, allCities } from '../data/citiesData';
-import { getAqiBadgeStyles, getAqiCategory } from '../utils/aqiUtils';
+import { getAqiBadgeStyles } from '../utils/aqiUtils';
 import { CalendarClock, Activity, Layers, MapPin } from 'lucide-react';
 import clsx from 'clsx';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import axios from 'axios';
 
 const ForecastIcon = ({ iconType, className }: any) => {
   if (iconType === 'warning') return <Activity className={className} />;
@@ -15,31 +16,56 @@ export default function Forecast() {
   const [targetCity, setTargetCity] = useState("Delhi");
   const [compareCity, setCompareCity] = useState("Bangalore");
 
-  // Dynamically scale forecast data based on the selected city's historical mean
-  const profile = cityProfiles[targetCity] || { meanAqi: 205 }; // fallback
-  const profileB = cityProfiles[compareCity] || { meanAqi: 95 }; 
-  const baselineAqi = profile.meanAqi || 205;
-  const baselineAqiB = profileB.meanAqi || 95;
-  const ratio = baselineAqi / 205; // 205 is the hardcoded baseline of old data
-  const ratioB = baselineAqiB / 205;
+  const [targetForecast, setTargetForecast] = useState<any[]>([]);
+  const [compareForecast, setCompareForecast] = useState<any[]>([]);
 
-  const dynamicForecastData = useMemo(() => forecastData.map((d, i) => {
-    const newAqi = Math.round(d.aqi * ratio) + (i * 2);
-    const newAqiB = Math.round(d.aqi * ratioB) + (i * 1);
-    return {
-      ...d,
-      aqi: newAqi,
-      category: getAqiCategory(newAqi),
-      aqiB: newAqiB
+  // Fetch real 7-day forecast from the FastAPI backend
+  useEffect(() => {
+    let isMounted = true;
+    const fetchForecasts = async () => {
+      try {
+        const dateStr = new Date().toISOString().split('T')[0];
+        const [resTarget, resCompare] = await Promise.all([
+          axios.post('/api/forecast', { city: targetCity, state: "Unknown", date: dateStr }),
+          axios.post('/api/forecast', { city: compareCity, state: "Unknown", date: dateStr })
+        ]);
+        
+        if (isMounted) {
+          setTargetForecast(resTarget.data.forecast);
+          setCompareForecast(resCompare.data.forecast);
+        }
+      } catch (e) {
+        console.error("Failed to fetch genuine ML forecast", e);
+      }
     };
-  }), [ratio, ratioB]);
+    fetchForecasts();
+    return () => { isMounted = false; };
+  }, [targetCity, compareCity]);
 
-  const dynamicTimeSeries = useMemo(() => chartTimeSeriesData.map(d => ({
-    ...d,
-    observed: d.observed ? Math.round(d.observed * ratio) : null,
-    forecast: d.forecast ? Math.round(d.forecast * ratio) : null
-  })), [ratio]);
+  // Combine fetched forecasts for the charts
+  const combinedForecast = useMemo(() => {
+    if (!targetForecast.length || !compareForecast.length) return [];
+    return targetForecast.map((day, i) => ({
+      day: day.date,
+      date: day.date,
+      aqi: day.aqi,
+      category: day.category,
+      aqiB: compareForecast[i]?.aqi || 0,
+      icon: 'warning'
+    }));
+  }, [targetForecast, compareForecast]);
 
+  const dynamicTimeSeries = useMemo(() => {
+    return combinedForecast.map((d, i) => ({
+      day: d.date,
+      observed: i === 0 ? d.aqi : null, // Connect the start of forecast
+      forecast: d.aqi
+    }));
+  }, [combinedForecast]);
+
+  // Decomposition visualization still relies on base shape scaling
+  const profile = cityProfiles[targetCity] || { meanAqi: 205 };
+  const ratio = (profile.meanAqi || 205) / 205;
   const dynamicDecomp = useMemo(() => decompositionData.map(d => ({
     ...d,
     observed: Math.round((d.observed * ratio) * 10) / 10,
@@ -96,7 +122,7 @@ export default function Forecast() {
       <section>
         <h2 className="text-lg font-bold text-slate-300 mb-4 px-2">Upcoming 7 Days Forecast ({targetCity})</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
-          {dynamicForecastData.map((day, idx) => {
+          {combinedForecast.map((day: any, idx: number) => {
             const badgeClass = getAqiBadgeStyles(day.category);
             return (
               <div key={idx} className="glass-panel p-5 rounded-2xl flex flex-col items-center justify-center text-center hover:-translate-y-1 transition-transform cursor-default relative overflow-hidden group">
@@ -228,7 +254,7 @@ export default function Forecast() {
          <p className="text-sm text-slate-400 mb-6">Analyze 7-day predicted pollution divergence between {targetCity} and {compareCity}.</p>
          <div className="h-[250px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={dynamicForecastData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+              <LineChart data={combinedForecast} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
                 <XAxis dataKey="day" stroke="#475569" tick={{ fill: '#94a3b8', fontSize: 12 }} />
                 <YAxis stroke="#475569" tick={{ fill: '#94a3b8', fontSize: 12 }} />

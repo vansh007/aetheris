@@ -2,7 +2,21 @@
 Aetheris — Step 3: Model Training, Comparison & Hyperparameter Tuning
 Run: python run_03_modeling.py
 """
-
+"""
+Load Data
+   ↓
+Train Multiple Models
+   ↓
+Evaluate & Compare
+   ↓
+Hyperparameter Tuning
+   ↓
+Handle Class Imbalance (SMOTE)
+   ↓
+Select Best Models
+   ↓
+Save for Deployment
+"""
 import pandas as pd
 import numpy as np
 import os
